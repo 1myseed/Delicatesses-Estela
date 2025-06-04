@@ -82,18 +82,16 @@ input:focus, textarea:focus { border-color: #DC143C; outline: none; }
 
 <div id="loginScreen" class="login-screen">
 <div class="login-card">
-<div class="logo">
-    <img src="logo.jpeg" alt="Delicatesses Estela" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
-</div>
+<div class="logo">🍽️</div>
 <h1 class="login-title">Delicatesses Estela</h1>
-<button class="btn client" onclick="toggleSection('clientSection')">👤 Cliente</button>
-<button class="btn" onclick="toggleSection('adminSection')">🔐 Admin</button>
+<button class="btn client" onclick="toggle('clientSection')">👤 Cliente</button>
+<button class="btn" onclick="toggle('adminSection')">🔐 Admin</button>
 <div id="clientSection" class="hidden" style="margin-top:15px;">
 <input type="text" id="clientName" placeholder="Tu nombre">
 <button class="btn client" onclick="login('client')">✅ Entrar</button>
 </div>
 <div id="adminSection" class="hidden" style="margin-top:15px;">
-<input type="password" id="adminCode" placeholder="Ingresa El codigo de Admin">
+<input type="password" id="adminCode" placeholder="Codigo de Admin">
 <button class="btn" onclick="login('admin')">✅ Entrar</button>
 </div>
 </div>
@@ -157,18 +155,31 @@ input:focus, textarea:focus { border-color: #DC143C; outline: none; }
 </div>
 
 <script>
-// Datos con persistencia
+// Audio para notificaciones
+const playNotification = () => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.3);
+};
+
+// Datos
 let data = JSON.parse(localStorage.getItem('rotiseriaData')) || {
     products: [
         {id: 1, name: "Pollo Asado", price: 850.00, description: "Pollo entero asado con especias"},
         {id: 2, name: "Empanadas x12", price: 1200.00, description: "Docena de empanadas surtidas"}
     ],
-    cart: [],
-    orders: [],
-    isAdmin: false,
-    editingId: null,
-    clientName: '',
-    currentOrderId: null
+    cart: [], orders: [], isAdmin: false, editingId: null, clientName: '', currentOrderId: null
 };
 
 // Funciones auxiliares
@@ -177,12 +188,10 @@ const save = () => localStorage.setItem('rotiseriaData', JSON.stringify(data));
 const show = el => (typeof el === 'string' ? $(el) : el).classList.remove('hidden');
 const hide = el => (typeof el === 'string' ? $(el) : el).classList.add('hidden');
 
-function toggleSection(id) {
+function toggle(id) {
     const section = $(id);
     section.classList.toggle('hidden');
-    if (!section.classList.contains('hidden')) {
-        section.querySelector('input').focus();
-    }
+    if (!section.classList.contains('hidden')) section.querySelector('input').focus();
 }
 
 function login(type) {
@@ -196,35 +205,23 @@ function login(type) {
         data.isAdmin = true;
     }
     
-    show('mainContent');
-    hide('loginScreen');
+    show('mainContent'); hide('loginScreen');
     $('modeText').textContent = data.isAdmin ? '🔐 Admin' : `👤 ${data.clientName}`;
     
     if (data.isAdmin) {
-        show('adminPanel');
-        show('ordersPanel');
-        hide('clientCart');
+        show('adminPanel'); show('ordersPanel'); hide('clientCart');
         updateChatCounter();
     } else {
-        hide('adminPanel');
-        hide('ordersPanel');
-        show('clientCart');
+        hide('adminPanel'); hide('ordersPanel'); show('clientCart');
     }
     
-    save();
-    render();
+    save(); render();
 }
 
 function logout() {
-    show('loginScreen');
-    hide('mainContent');
-    hide('adminSection');
-    hide('clientSection');
-    $('adminCode').value = '';
-    $('clientName').value = '';
-    data.isAdmin = false;
-    data.clientName = '';
-    data.currentOrderId = null;
+    show('loginScreen'); hide('mainContent'); hide('adminSection'); hide('clientSection');
+    $('adminCode').value = ''; $('clientName').value = '';
+    data.isAdmin = false; data.clientName = ''; data.currentOrderId = null;
     save();
 }
 
@@ -263,14 +260,11 @@ function renderProducts() {
 }
 
 function renderCart() {
-    const cartItems = $('cartItems');
-    const cartTotal = $('cartTotal');
-    const orderForm = $('orderForm');
+    const cartItems = $('cartItems'), cartTotal = $('cartTotal'), orderForm = $('orderForm');
     
     if (!data.cart.length) {
         cartItems.innerHTML = '<div class="empty-message">Carrito vacío</div>';
-        hide(cartTotal);
-        hide(orderForm);
+        hide(cartTotal); hide(orderForm);
         return;
     }
     
@@ -286,8 +280,7 @@ function renderCart() {
     
     const total = data.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     cartTotal.textContent = `Total: $${total.toFixed(2)}`;
-    show(cartTotal);
-    show(orderForm);
+    show(cartTotal); show(orderForm);
 }
 
 function renderOrders() {
@@ -319,33 +312,20 @@ function saveProduct() {
     const description = $('productDescription').value.trim();
     const image = $('productImage').value.trim();
     
-    if (!name || !price || price <= 0) {
-        return alert('❌ Nombre y precio son obligatorios');
-    }
+    if (!name || !price || price <= 0) return alert('❌ Nombre y precio son obligatorios');
     
     if (data.editingId) {
         const product = data.products.find(p => p.id === data.editingId);
         if (product) {
-            product.name = name;
-            product.price = price;
-            product.description = description;
-            product.image = image;
+            Object.assign(product, {name, price, description, image});
         }
         alert('✅ Producto actualizado');
     } else {
-        data.products.push({
-            id: Date.now(),
-            name,
-            price,
-            description,
-            image
-        });
+        data.products.push({id: Date.now(), name, price, description, image});
         alert('✅ Producto agregado');
     }
     
-    clearForm();
-    save();
-    render();
+    clearForm(); save(); render();
 }
 
 function editProduct(id) {
@@ -363,26 +343,18 @@ function editProduct(id) {
 }
 
 function deleteProduct(id) {
-    if (!data.isAdmin) return;
-    if (!confirm('¿Eliminar producto?')) return;
-    
+    if (!data.isAdmin || !confirm('¿Eliminar producto?')) return;
     data.products = data.products.filter(p => p.id !== id);
-    save();
-    render();
-    alert('✅ Producto eliminado');
+    save(); render(); alert('✅ Producto eliminado');
 }
 
 function clearForm() {
-    $('productName').value = '';
-    $('productPrice').value = '';
-    $('productDescription').value = '';
-    $('productImage').value = '';
+    ['productName', 'productPrice', 'productDescription', 'productImage'].forEach(id => $(id).value = '');
     data.editingId = null;
 }
 
 function addToCart(productId) {
     if (data.isAdmin) return;
-    
     const product = data.products.find(p => p.id === productId);
     if (!product) return;
     
@@ -392,30 +364,22 @@ function addToCart(productId) {
     if (existing) {
         existing.quantity += quantity;
     } else {
-        data.cart.push({
-            id: productId,
-            name: product.name,
-            price: product.price,
-            quantity
-        });
+        data.cart.push({id: productId, name: product.name, price: product.price, quantity});
     }
     
     $(`qty-${productId}`).value = 1;
-    save();
-    renderCart();
+    save(); renderCart();
 }
 
 function removeFromCart(index) {
     data.cart.splice(index, 1);
-    save();
-    renderCart();
+    save(); renderCart();
 }
 
 function clearCart() {
     if (!confirm('¿Vaciar carrito?')) return;
     data.cart = [];
-    save();
-    renderCart();
+    save(); renderCart();
 }
 
 function submitOrder() {
@@ -424,14 +388,8 @@ function submitOrder() {
     
     const total = data.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const order = {
-        id: Date.now(),
-        client: data.clientName,
-        phone,
-        items: [...data.cart],
-        total,
-        timestamp: new Date().toLocaleString(),
-        messages: [],
-        completed: false
+        id: Date.now(), client: data.clientName, phone, items: [...data.cart], total,
+        timestamp: new Date().toLocaleString(), messages: [], completed: false
     };
     
     data.orders.push(order);
@@ -442,30 +400,14 @@ function submitOrder() {
     $('chatFloat').style.display = 'flex';
     $('customerPhone').value = '';
     
-    save();
-    renderCart();
-    updateChatCounter();
+    save(); renderCart(); updateChatCounter();
 }
 
 function deleteOrderChat(id) {
-    if (!data.isAdmin) return;
-    
-    if (!confirm('¿Estás seguro de que deseas eliminar este pedido y su chat? Esta acción no se puede deshacer.')) {
-        return;
-    }
-    
-    // Eliminar el pedido de la lista
+    if (!data.isAdmin || !confirm('¿Eliminar este pedido y chat?')) return;
     data.orders = data.orders.filter(o => o.id !== id);
-    
-    // Cerrar el chat automáticamente
-    closeChat();
-    
-    // Guardar cambios y actualizar vistas
-    save();
-    renderOrders();
-    updateChatCounter();
-    
-    alert('✅ Pedido y chat eliminados correctamente');
+    closeChat(); save(); renderOrders(); updateChatCounter();
+    alert('✅ Pedido y chat eliminados');
 }
 
 function completeOrder(id) {
@@ -473,15 +415,8 @@ function completeOrder(id) {
     if (!order) return;
     
     order.completed = !order.completed;
-    save();
-    
-    // Cerrar el chat automáticamente
-    closeChat();
-    
-    renderOrders();
+    save(); closeChat(); renderOrders();
     alert(order.completed ? '✅ Pedido completado' : '🔄 Pedido reactivado');
-    
-    // Actualizar contador de chat
     updateChatCounter();
 }
 
@@ -509,9 +444,7 @@ function openChat() {
     
     if (!data.isAdmin) {
         const clientOrder = data.orders.find(o => o.client === data.clientName);
-        if (clientOrder) {
-            data.currentOrderId = clientOrder.id;
-        }
+        if (clientOrder) data.currentOrderId = clientOrder.id;
     }
     
     $('chatModal').style.display = 'block';
@@ -543,26 +476,22 @@ function sendMessage() {
     const senderName = data.isAdmin ? 'Admin' : data.clientName;
     
     order.messages.push({
-        sender,
-        senderName,
-        message,
+        sender, senderName, message,
         time: new Date().toLocaleTimeString()
     });
     
+    // Reproducir sonido de notificación
+    playNotification();
+    
     input.value = '';
-    save();
-    loadChat();
+    save(); loadChat();
     
-    if (data.isAdmin) {
-        renderOrders();
-    } else {
-        updateChatCounter();
-    }
+    if (data.isAdmin) renderOrders();
+    else updateChatCounter();
     
-    // Scroll al final del chat
-    const chatContainer = $('chatMessages');
+    // Scroll al final
     setTimeout(() => {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
     }, 100);
 }
 
@@ -587,15 +516,12 @@ function loadChat() {
                 <h4 style="color: #2F4F2F; margin-bottom: 10px;">🏁 Gestión del Pedido</h4>
                 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button class="complete-order-btn ${order.completed ? 'completed' : ''}" onclick="completeOrder(${order.id})">
-                        ${order.completed ? '🔄 Reactivar Pedido' : '✅ Completar Pedido'}
+                        ${order.completed ? '🔄 Reactivar' : '✅ Completar'}
                     </button>
                     <button class="complete-order-btn" style="background: linear-gradient(45deg, #8B0000, #A0001A);" onclick="deleteOrderChat(${order.id})">
-                        🗑️ Eliminar Chat
+                        🗑️ Eliminar
                     </button>
                 </div>
-                <p style="font-size: 12px; color: #666; margin-top: 5px;">
-                    ${order.completed ? 'El pedido está marcado como completado' : 'Marca el pedido como completado cuando esté listo'}
-                </p>
             </div>
         ` : ''}
         ${order.messages.map(msg => `
@@ -610,17 +536,9 @@ function loadChat() {
 }
 
 // Event listeners
-$('chatInput').addEventListener('keypress', e => {
-    if (e.key === 'Enter') sendMessage();
-});
-
-$('clientName').addEventListener('keypress', e => {
-    if (e.key === 'Enter') login('client');
-});
-
-$('adminCode').addEventListener('keypress', e => {
-    if (e.key === 'Enter') login('admin');
-});
+$('chatInput').addEventListener('keypress', e => e.key === 'Enter' && sendMessage());
+$('clientName').addEventListener('keypress', e => e.key === 'Enter' && login('client'));
+$('adminCode').addEventListener('keypress', e => e.key === 'Enter' && login('admin'));
 
 // Inicializar
 render();
